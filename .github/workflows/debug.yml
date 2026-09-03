@@ -1,0 +1,22 @@
+name: Debug session
+
+# 推送到 main 分支自动触发（保留 workflow_dispatch 以便手动补开一次）
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  debug:
+    runs-on: ubuntu-latest
+    # 防止忘记关，最多挂 30 分钟
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup tmate session
+        uses: mxschmitt/action-tmate@v3
+        with:
+          # 只允许触发 workflow 的 GitHub 账户（其 GitHub 公钥）连接
+          # 前提：你的 GitHub 账户里已添加过 SSH 公钥（Settings → SSH and GPG keys）
+          limit-access-to-actor: true

@@ -1,10 +1,8 @@
 name: Debug session
 
-# 推送到 main 分支自动触发（保留 workflow_dispatch 以便手动补开一次）
-on:
-  push:
-    branches: [main]
-  workflow_dispatch:
+# tmate.io 从 runner 出网不稳(连续两次挂在 wait tmate-ready),
+# 改为仅手动触发;自建 tmate 服务端后再启用
+on: workflow_dispatch
 
 jobs:
   debug:

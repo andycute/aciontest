@@ -20,3 +20,5 @@ jobs:
           # 只允许触发 workflow 的 GitHub 账户（其 GitHub 公钥）连接
           # 前提：你的 GitHub 账户里已添加过 SSH 公钥（Settings → SSH and GPG keys）
           limit-access-to-actor: true
+          # 10 分钟内没人连接就自动结束，别干挂着
+          connect-timeout-seconds: 600

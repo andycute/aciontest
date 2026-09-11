@@ -26,31 +26,40 @@ jobs:
             -e TITLE="Actions Firefox" \
             -e PASSWORD="$PASS" \
             -e SELKIES_PASSWORD="$PASS" \
-            -p 3000:3000 -p 8080:8080 \
+            -p 3000:3000 -p 8080:8080 -p 8082:8082 \
             lscr.io/linuxserver/firefox:latest
 
-      - name: Wait for web UI (port 3000, proven)
+      - name: Wait for web UI (auto-detect port)
         run: |
-          for p in 3000 8080; do
-            for i in $(seq 100); do
+          # 等容器把端口发布出来
+          for i in $(seq 30); do
+            PORTS=$(docker port firefox 2>/dev/null | grep -oE '0\.0\.0\.0:[0-9]+' | cut -d: -f2 | sort -un)
+            [ -n "$PORTS" ] && break
+            sleep 2
+          done
+          echo "容器发布端口: ${PORTS:-<无>}"
+          for i in $(seq 90); do
+            for p in $PORTS; do
               if curl -sf -o /dev/null "http://localhost:$p"; then
                 echo "UI 就绪,端口 $p"
                 echo "PORT=$p" >> "$GITHUB_ENV"
                 exit 0
               fi
-              sleep 2
             done
-            echo "端口 $p 未就绪"
+            sleep 2
           done
-          echo "--- container logs ---"
-          docker logs firefox
+          echo "=== 诊断: UI 在等待窗口内未就绪,以下是排查信息 ==="
+          echo "--- docker ps ---"; docker ps -a
+          echo "--- docker port ---"; docker port firefox
+          echo "--- runner 监听端口 ---"; (ss -ltnp 2>/dev/null || netstat -ltnp 2>/dev/null) | head -20
+          echo "--- 完整容器日志 ---"; docker logs firefox
           exit 1
 
       - name: Start cloudflared tunnel & hold session
         run: |
           curl -sL https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -o /tmp/cloudflared
           chmod +x /tmp/cloudflared
-          /tmp/cloudflared tunnel --url "http://localhost:${PORT:-8080}" --no-autoupdate > /tmp/cf.log 2>&1 &
+          /tmp/cloudflared tunnel --url "http://localhost:${PORT:-3000}" --no-autoupdate > /tmp/cf.log 2>&1 &
           TURL=""
           for i in $(seq 60); do
             TURL=$(grep -oE 'https://[a-z0-9-]+\.trycloudflare\.com' /tmp/cf.log | head -1)

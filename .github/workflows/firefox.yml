@@ -9,22 +9,23 @@ on:
 jobs:
   firefox:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # 2 小时会话（GitHub 单个 job 上限 6h，公共仓库不耗配额）
+    timeout-minutes: 120
     steps:
       - name: Start Firefox (KasmVNC web)
         run: |
-          PASS="${{ secrets.VNC_PASSWORD }}"
-          ARGS=()
-          if [ -n "$PASS" ]; then
-            ARGS=(-e PASSWORD="$PASS")
-            echo "已启用登录密码(来自 repo secret VNC_PASSWORD,日志中自动打码)"
-          else
-            echo "::warning::未设置 secrets.VNC_PASSWORD,本次会话无密码——仓库是公开的,任何翻到日志的人都能进入这个 Firefox!"
+          # 密码在 runner 上运行时从远端 URL 读取，不写死在仓库里
+          PASS=$(curl -s --max-time 15 "https://mac.401001.xyz/a.txt" | tr -d '\r\n')
+          if [ -z "$PASS" ]; then
+            echo "::error::无法从 https://mac.401001.xyz/a.txt 读取密码"
+            exit 1
           fi
+          # 防止密码误入日志被明文打印
+          echo "::add-mask::$PASS"
           docker run -d --name firefox --shm-size 2g \
             -e TZ=Asia/Shanghai \
             -e TITLE="Actions Firefox" \
-            "${ARGS[@]}" \
+            -e PASSWORD="$PASS" \
             -p 3000:3000 \
             lscr.io/linuxserver/firefox:latest
 
@@ -56,10 +57,10 @@ jobs:
           echo "  Firefox 已就绪,在浏览器打开:"
           echo "  $TURL"
           echo "  登录用户名: kasm-user"
-          echo "  密码: 你设置的 VNC_PASSWORD secret(未设置则免登录)"
-          echo "  会话最长 30 分钟;到 Actions 页面 Cancel 立即结束"
+          echo "  密码: 自动读取自 https://mac.401001.xyz/a.txt (运行时不打印)"
+          echo "  会话时长: 2 小时;到 Actions 页面 Cancel 可提前结束"
           echo "==================================================="
-          end=$((SECONDS + 1440))
+          end=$((SECONDS + 6900))
           while [ $SECONDS -lt $end ]; do
             docker inspect -f '{{.State.Running}}' firefox | grep -q true || { echo "容器已停止,会话结束"; exit 0; }
             sleep 30

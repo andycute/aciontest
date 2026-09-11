@@ -12,7 +12,7 @@ jobs:
     # 2 小时会话（GitHub 单个 job 上限 6h，公共仓库不耗配额）
     timeout-minutes: 120
     steps:
-      - name: Start Firefox (Selkies web)
+      - name: Start Firefox (jlesage/firefox, noVNC :5800)
         run: |
           # 密码在 runner 上运行时从远端 URL 读取，不写死在仓库里
           PASS=$(curl -s --max-time 15 "https://mac.401001.xyz/a.txt" | tr -d '\r\n')
@@ -21,34 +21,23 @@ jobs:
             exit 1
           fi
           echo "::add-mask::$PASS"   # 防止密码误入日志
+          # jlesage/firefox: noVNC 网页在 5800, VNC 在 5900; PASSWORD 为 VNC 登录密码
           docker run -d --name firefox --shm-size 2g \
-            -e TZ=Asia/Shanghai \
-            -e TITLE="Actions Firefox" \
             -e PASSWORD="$PASS" \
-            -e SELKIES_PASSWORD="$PASS" \
-            -p 3000:3000 -p 8080:8080 -p 8082:8082 \
-            lscr.io/linuxserver/firefox:latest
+            -p 5800:5800 -p 5900:5900 \
+            jlesage/firefox:latest
 
-      - name: Wait for web UI (auto-detect port)
+      - name: Wait for web UI (port 5800)
         run: |
-          # 等容器把端口发布出来
-          for i in $(seq 30); do
-            PORTS=$(docker port firefox 2>/dev/null | grep -oE '0\.0\.0\.0:[0-9]+' | cut -d: -f2 | sort -un)
-            [ -n "$PORTS" ] && break
+          for i in $(seq 120); do
+            if curl -sf -o /dev/null "http://localhost:5800"; then
+              echo "UI 就绪,端口 5800"
+              echo "PORT=5800" >> "$GITHUB_ENV"
+              exit 0
+            fi
             sleep 2
           done
-          echo "容器发布端口: ${PORTS:-<无>}"
-          for i in $(seq 90); do
-            for p in $PORTS; do
-              if curl -sf -o /dev/null "http://localhost:$p"; then
-                echo "UI 就绪,端口 $p"
-                echo "PORT=$p" >> "$GITHUB_ENV"
-                exit 0
-              fi
-            done
-            sleep 2
-          done
-          echo "=== 诊断: UI 在等待窗口内未就绪,以下是排查信息 ==="
+          echo "=== 诊断: 5800 在等待窗口内未就绪 ==="
           echo "--- docker ps ---"; docker ps -a
           echo "--- docker port ---"; docker port firefox
           echo "--- runner 监听端口 ---"; (ss -ltnp 2>/dev/null || netstat -ltnp 2>/dev/null) | head -20
@@ -59,7 +48,7 @@ jobs:
         run: |
           curl -sL https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -o /tmp/cloudflared
           chmod +x /tmp/cloudflared
-          /tmp/cloudflared tunnel --url "http://localhost:${PORT:-3000}" --no-autoupdate > /tmp/cf.log 2>&1 &
+          /tmp/cloudflared tunnel --url "http://localhost:${PORT:-5800}" --no-autoupdate > /tmp/cf.log 2>&1 &
           TURL=""
           for i in $(seq 60); do
             TURL=$(grep -oE 'https://[a-z0-9-]+\.trycloudflare\.com' /tmp/cf.log | head -1)
@@ -72,8 +61,7 @@ jobs:
           echo "==================================================="
           echo "  Firefox 已就绪,在浏览器打开:"
           echo "  $TURL"
-          echo "  登录用户名: kasm-user"
-          echo "  密码: 自动读取自 https://mac.401001.xyz/a.txt (运行时不打印)"
+          echo "  noVNC 登录密码: 你设置的 a.txt 内容 (用户名留空或随意)"
           echo "  会话时长: 2 小时;到 Actions 页面 Cancel 可提前结束"
           echo "==================================================="
           end=$((SECONDS + 6900))

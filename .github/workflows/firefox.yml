@@ -26,13 +26,13 @@ jobs:
             -e TITLE="Actions Firefox" \
             -e PASSWORD="$PASS" \
             -e SELKIES_PASSWORD="$PASS" \
-            -p 8080:8080 -p 3000:3000 \
+            -p 3000:3000 -p 8080:8080 \
             lscr.io/linuxserver/firefox:latest
 
-      - name: Wait for web UI (detect port)
+      - name: Wait for web UI (port 3000, proven)
         run: |
-          for p in 8080 3000 8081 8082 8083; do
-            for i in $(seq 75); do
+          for p in 3000 8080; do
+            for i in $(seq 100); do
               if curl -sf -o /dev/null "http://localhost:$p"; then
                 echo "UI 就绪,端口 $p"
                 echo "PORT=$p" >> "$GITHUB_ENV"

@@ -26,6 +26,7 @@ jobs:
           # cloudflared->容器是 localhost,浏览器->Cloudflare 走 HTTPS,故 ALLOW_INSECURE=1
           docker run -d --name firefox --shm-size 2g \
             -e WEB_AUTHENTICATION=1 \
+            -e WEB_AUTHENTICATION_USERNAME=firefox \
             -e WEB_AUTHENTICATION_PASSWORD="$PASS" \
             -e WEB_AUTHENTICATION_ALLOW_INSECURE=1 \
             -p 5800:5800 \
@@ -65,7 +66,7 @@ jobs:
           echo "==================================================="
           echo "  Firefox 已就绪,在浏览器打开:"
           echo "  $TURL"
-          echo "  Web 登录密码: a.txt 的完整内容(网页登录,不限制 8 字符)"
+          echo "  Web 登录: 用户名 firefox / 密码 a.txt 的完整内容"
           echo "  会话时长: 2 小时;到 Actions 页面 Cancel 可提前结束"
           echo "==================================================="
           end=$((SECONDS + 6900))

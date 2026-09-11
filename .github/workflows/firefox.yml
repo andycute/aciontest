@@ -12,7 +12,7 @@ jobs:
     # 2 小时会话（GitHub 单个 job 上限 6h，公共仓库不耗配额）
     timeout-minutes: 120
     steps:
-      - name: Start Firefox (KasmVNC web)
+      - name: Start Firefox (Selkies web)
         run: |
           # 密码在 runner 上运行时从远端 URL 读取，不写死在仓库里
           PASS=$(curl -s --max-time 15 "https://mac.401001.xyz/a.txt" | tr -d '\r\n')
@@ -20,20 +20,27 @@ jobs:
             echo "::error::无法从 https://mac.401001.xyz/a.txt 读取密码"
             exit 1
           fi
-          # 防止密码误入日志被明文打印
-          echo "::add-mask::$PASS"
+          echo "::add-mask::$PASS"   # 防止密码误入日志
           docker run -d --name firefox --shm-size 2g \
             -e TZ=Asia/Shanghai \
             -e TITLE="Actions Firefox" \
             -e PASSWORD="$PASS" \
-            -p 3000:3000 \
+            -e SELKIES_PASSWORD="$PASS" \
+            -p 8080:8080 -p 3000:3000 \
             lscr.io/linuxserver/firefox:latest
 
-      - name: Wait for web UI
+      - name: Wait for web UI (detect port)
         run: |
-          for i in $(seq 45); do
-            curl -sf -o /dev/null http://localhost:3000 && { echo "KasmVNC ready"; exit 0; }
-            sleep 2
+          for p in 8080 3000 8081 8082 8083; do
+            for i in $(seq 75); do
+              if curl -sf -o /dev/null "http://localhost:$p"; then
+                echo "UI 就绪,端口 $p"
+                echo "PORT=$p" >> "$GITHUB_ENV"
+                exit 0
+              fi
+              sleep 2
+            done
+            echo "端口 $p 未就绪"
           done
           echo "--- container logs ---"
           docker logs firefox
@@ -43,7 +50,7 @@ jobs:
         run: |
           curl -sL https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -o /tmp/cloudflared
           chmod +x /tmp/cloudflared
-          /tmp/cloudflared tunnel --url http://localhost:3000 --no-autoupdate > /tmp/cf.log 2>&1 &
+          /tmp/cloudflared tunnel --url "http://localhost:${PORT:-8080}" --no-autoupdate > /tmp/cf.log 2>&1 &
           TURL=""
           for i in $(seq 60); do
             TURL=$(grep -oE 'https://[a-z0-9-]+\.trycloudflare\.com' /tmp/cf.log | head -1)

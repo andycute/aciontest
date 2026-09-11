@@ -21,10 +21,14 @@ jobs:
             exit 1
           fi
           echo "::add-mask::$PASS"   # 防止密码误入日志
-          # jlesage/firefox: noVNC 网页在 5800, VNC 在 5900; PASSWORD 为 VNC 登录密码
+          # jlesage/firefox: noVNC 网页在 5800
+          # 用 Web 登录页保护(支持完整长度密码,不受 VNC 8 字符限制)
+          # cloudflared->容器是 localhost,浏览器->Cloudflare 走 HTTPS,故 ALLOW_INSECURE=1
           docker run -d --name firefox --shm-size 2g \
-            -e PASSWORD="$PASS" \
-            -p 5800:5800 -p 5900:5900 \
+            -e WEB_AUTHENTICATION=1 \
+            -e WEB_AUTHENTICATION_PASSWORD="$PASS" \
+            -e WEB_AUTHENTICATION_ALLOW_INSECURE=1 \
+            -p 5800:5800 \
             jlesage/firefox:latest
 
       - name: Wait for web UI (port 5800)
@@ -61,7 +65,7 @@ jobs:
           echo "==================================================="
           echo "  Firefox 已就绪,在浏览器打开:"
           echo "  $TURL"
-          echo "  noVNC 登录密码: 你设置的 a.txt 内容 (用户名留空或随意)"
+          echo "  Web 登录密码: a.txt 的完整内容(网页登录,不限制 8 字符)"
           echo "  会话时长: 2 小时;到 Actions 页面 Cancel 可提前结束"
           echo "==================================================="
           end=$((SECONDS + 6900))
